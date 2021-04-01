@@ -22,6 +22,11 @@ namespace GoBang.Controllers
 		{
 			return File("~/html/room.html", "text/html");
 		}
+		//[HttpGet]
+		//public IActionResult Room()
+		//{
+		//	return File("~/html/room.html", "text/html");
+		//}
 		public IActionResult Privacy()
 		{
 			return View();

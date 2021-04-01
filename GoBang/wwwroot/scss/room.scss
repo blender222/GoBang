@@ -7,12 +7,110 @@ body {
   display: flex;
   background-color: #555;
 }
-#board {
-  @include size(640px, 640px);
-  position: relative;
-  margin: 35px auto 0;
-  outline: 2px solid #ff0000;
-  background-color: rgb(255, 189, 58);
+#app {
+  width: 100%;
+  display: flex;
+  &, & * {
+    color: #fff;
+  }
+  h1 {
+    font-weight: 600;
+  }
+  #form-input-name {
+    @include size(500px, 300px);
+    margin: auto;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    h1 {
+      font-size: 72px;
+      margin-bottom: 80px;
+    }
+    input, button {
+      padding: 8px 16px;
+      border-radius: 4px;
+      font-size: 24px;
+    }
+    input {
+      margin-right: 15px;
+      color: #fff;
+      border: 1px solid #eee;
+      background-color: transparent;
+      &:focus {
+        box-shadow: 0 0 5px #fff;
+      }
+      &::placeholder {
+        color: #bbb;
+      }
+    }
+    button {
+      border: 1px solid rgb(53, 164, 255);
+      background-color: rgb(53, 164, 255);
+      cursor: pointer;
+      &:hover {
+        filter: brightness(1.07);
+      }
+    }
+  }
+  #hall {
+    width: 100%;
+    font-size: 22px;
+    h1 {
+      padding: 20px 0 25px;
+      font-size: 52px;
+      text-align: center;
+    }
+    .table {
+      padding: 0 50px;
+      height: 520px;
+    }
+    .thead {
+      display: flex;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 4px solid #ccc;
+    }
+    .thead .field:nth-child(1), .room-item .room-name {
+      width: 70%;
+      padding: 0 30px;
+    }
+    .thead .field:nth-child(2), .room-item .player-count {
+      width: 15%;
+      text-align: center;
+    }
+    .thead .field:nth-child(3), .room-item .room-status {
+      width: 15%;
+      text-align: center;
+    }
+    .room-item {
+      padding: 10px 0;
+      display: flex;
+      align-items: flex-end;
+      border-bottom: 2px solid #ccc;
+    }
+    #create-room {
+      position: fixed;
+      bottom: 20px;
+      right: 50px;
+      font-size: 22px;
+      border-radius: 4px;
+      padding: 8px 16px;
+      border: 1px solid #fff;
+      cursor: pointer;
+      &:hover {
+        box-shadow: 0 0 6px #fff;
+      }
+    }
+  }
+  #room {
+    @include size(640px, 640px);
+    position: relative;
+    margin: 35px auto 0;
+    outline: 2px solid #ff0000;
+    background-color: rgb(255, 189, 58);
+  }
 }
 .line {
   &.horizontal {
@@ -91,5 +189,31 @@ body {
       background-color: #fff;
       box-shadow: 0 0 4px rgba(255, 255, 255, 1);
     }
+  }
+}
+#user-count {
+  position: fixed;
+  top: 20px;
+  right: 50px;
+  color: #fff;
+  font-size: 22px;
+}
+[v-cloak] {
+  display: none !important;
+}
+.df {
+  display: flex;
+}
+#toast-container {
+  margin-top: 30px;
+  .toast {
+    box-shadow: 0 0 5px #ddd;
+    &:hover {
+      box-shadow: 0 0 5px #fff;
+    }
+  }
+  .toast-message {
+    font-family: Arial;
+    font-size: 20px;
   }
 }
