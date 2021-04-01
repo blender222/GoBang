@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Room - 五子棋</title>
+  
+  <link rel="stylesheet" type="text/css" href="../css/room.min.css">
+</head>
+<body>
+  <div id="board">
+    <div>
+      <div class="line horizontal" v-for="i in 15"></div>
+    </div>
+    <div>
+      <div class="line vertical" v-for="i in 15"></div>
+    </div>
+    <div>
+      <div class="dot" v-for="i in 5"></div>
+    </div>
+    <div id="piece-group">
+      <div class="piece" :class="faction" v-for="i in 225" :style="piecePosition(i)"></div>
+    </div>
+  </div>
+  <script src="../lib/signalr/dist/browser/signalr.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.12/dist/vue.js"></script>
+  <script src="../js/room.js"></script>
+</body>
+</html>

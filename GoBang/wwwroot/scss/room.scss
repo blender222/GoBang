@@ -1,0 +1,95 @@
+@import "./reset";
+@import "./mixins";
+html, body {
+  height: 100%;
+}
+body {
+  display: flex;
+  background-color: #555;
+}
+#board {
+  @include size(640px, 640px);
+  position: relative;
+  margin: 35px auto 0;
+  outline: 2px solid #ff0000;
+  background-color: rgb(255, 189, 58);
+}
+.line {
+  &.horizontal {
+    @include size(562px, 2px);
+    margin: 0 auto;
+    left: 0;
+    right: 0;
+    @for $i from 1 through 15 {
+      &:nth-child(#{$i}) {
+        margin-top: $i * 40px - 1px;
+      }
+    }
+  }
+  &.vertical {
+    @include size(2px, 562px);
+    margin: auto 0;
+    top: 0;
+    bottom: 0;
+    @for $i from 1 through 15 {
+      &:nth-child(#{$i}) {
+        margin-left: $i * 40px - 1px;
+      }
+    }
+  }
+  position: absolute;
+  background-color: #000;
+}
+.dot {
+  @include size(7px, 7px);
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background-color: #000;
+  border-radius: 50%;
+  &:nth-child(1) {
+    top: 50%;
+    left: 50%;
+  }
+  &:nth-child(2) {
+    top: 4 * 40px;
+    left: 4 * 40px;
+  }
+  &:nth-child(3) {
+    top: 4 * 40px;
+    left: 12 * 40px;
+  }
+  &:nth-child(4) {
+    top: 12 * 40px;
+    left: 4 * 40px;
+  }
+  &:nth-child(5) {
+    top: 12 * 40px;
+    left: 12 * 40px;
+  }
+}
+.piece {
+  @include size(29px, 29px);
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  &.black {
+    &:hover {
+      background-color: rgba(0, 0, 0, 0.6);
+      box-shadow: 0 0 4px rgba(0, 0, 0, 1);
+    }
+    &.active {
+      background-color: #000;
+      box-shadow: 0 0 4px rgba(0, 0, 0, 1);
+    }
+  }
+  &.white {
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.6);
+      box-shadow: 0 0 4px rgba(255, 255, 255, 1);
+    }
+    &.active {
+      background-color: #fff;
+      box-shadow: 0 0 4px rgba(255, 255, 255, 1);
+    }
+  }
+}
