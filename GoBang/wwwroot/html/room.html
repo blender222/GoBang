@@ -6,18 +6,20 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Room - 五子棋</title>
-  
-  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+
+  <link rel="stylesheet" href="../lib/bootstrap/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="../lib/bootstrap-vue/bootstrap-vue.min.css">
+  <link rel="stylesheet" href="../lib/toastr.js/toastr.min.css">
   <link rel="stylesheet" type="text/css" href="../css/room.min.css">
 </head>
 
 <body>
   <div id="app" v-cloak>
-    <div id="form-input-name" v-if="scenes == 'inputName'">
+    <div id="form-input-name" v-if="scenes == 'initial'">
       <h1>五子棋</h1>
       <div class="df">
-        <input v-model="userName" type="text" placeholder="您的ID">
-        <button @click="joinHall">加入</button>
+        <input v-model="userName" @keyup.enter="joinHall" type="text" placeholder="您的ID">
+        <button @click="joinHall" class="btn blue">加入</button>
       </div>
     </div>
     <div id="hall" v-if="scenes == 'hall'">
@@ -28,36 +30,73 @@
           <div class="field">人數</div>
           <div class="field">狀態</div>
         </div>
-        <div class="room-item" v-for="room in roomList">
+        <div class="room-item" v-for="room in roomList" @click="joinRoom(room.RoomId)">
           <div class="room-name">{{ room.RoomName }}</div>
           <div class="player-count">{{ room.PlayerCount }} / 2</div>
           <div class="room-status">{{ room.RoomStatus }}</div>
         </div>
       </div>
-      <button id="create-room">創建房間</button>
+      <button type="button" id="create-room" 
+        v-b-modal.modal-room-name
+        @click="clearRoomName">創建房間
+      </button>
+      <b-modal id="modal-room-name" title="房間名稱"
+        ok-title="確認"
+        cancel-title="取消"
+        @ok="createRoom"
+        @shown="focusInput"
+        @hidden="clearRoomName">
+        <b-form-input v-model="newRoomName" @keyup.enter="createRoom"></b-form-input>
+      </b-modal>
     </div>
-    <div id="room" v-show="scenes == 'room'">
-      <div>
-        <div class="line horizontal" v-for="i in 15"></div>
+    <div id="room" v-if="scenes == 'room'">
+      <div class="panel">
+        <div class="player-list">
+          <div class="player">玩家 1<span>{{ playerList[0] == undefined ? '' : playerList[0].UserName }}</span></div>
+          <div class="player">玩家 2<span>{{ playerList[1] == undefined ? '' : playerList[1].UserName }}</span></div>
+        </div>
+        <div class="other">
+          <button id="leave-room" class="btn white" @click="leaveRoom" disabled>離開</button>
+          <button class="btn blue" @click="startGame" :disabled="startBtnControl">準備</button>
+          <div class="time-left">剩餘時間<span>{{ timeLeft }}</span>秒</div>
+        </div>
+        <div class="chat">
+          <div class="output">
+            <div class="message">
+              <span>玩家玩家玩家玩家玩家</span>
+              <span>訊息</span>
+            </div>
+          </div>
+          <div class="send">
+            <input type="text">
+            <button class="btn blue">送出</button>
+          </div>
+        </div>
       </div>
-      <div>
-        <div class="line vertical" v-for="i in 15"></div>
-      </div>
-      <div>
-        <div class="dot" v-for="i in 5"></div>
-      </div>
-      <div id="piece-group">
-        <div class="piece" :class="faction" v-for="i in 225" :style="piecePosition(i)"></div>
+      <div id="board">
+        <div>
+          <div class="line horizontal" v-for="i in 15"></div>
+        </div>
+        <div>
+          <div class="line vertical" v-for="i in 15"></div>
+        </div>
+        <div>
+          <div class="dot" v-for="i in 5"></div>
+        </div>
+        <div id="piece-group">
+          <div class="piece" :class="faction" v-for="i in 225" :style="piecePosition(i)"></div>
+        </div>
       </div>
     </div>
-    <div id="user-count">在線人數&nbsp;&nbsp;&nbsp;{{ userCount }}</div>
+    <div id="user-count" v-if="scenes != 'room'">在線人數&nbsp;&nbsp;&nbsp;{{ userCount }}</div>
   </div>
-  
+
   <script src="../lib/signalr/dist/browser/signalr.min.js"></script>
+  <script src="../lib/jquery/dist/jquery.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/vue@2.6.12/dist/vue.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js" integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ==" crossorigin="anonymous"></script>
-  <script src="//cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
-  
+  <script src="../lib/bootstrap-vue/bootstrap-vue.min.js"></script>
+  <script src="../lib/toastr.js/toastr.min.js"></script>
+
   <script src="../js/room.js"></script>
 </body>
 

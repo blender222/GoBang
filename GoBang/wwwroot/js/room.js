@@ -9,9 +9,9 @@ toastr.options = {
 let app = new Vue({
   el: '#app',
   data: {
-    scenes: 'hall',
+    scenes: 'initial',
     userName: '',
-    faction: 'white',
+    faction: 'black',
     connection: new signalR.HubConnectionBuilder().withUrl("/goBangHub").build(),
     pieceArray: (function() {
       let arr = new Array(16);
@@ -21,13 +21,67 @@ let app = new Vue({
       return arr;
     })(),
     userCount: null,
-    roomList: [
-      {RoomName: '家庭教師', PlayerCount: 1, RoomStatus: '進行中'},
-      {RoomName: '學員兼助教', PlayerCount: 2, RoomStatus: '等待中'}
-    ],
+    roomList: [],
     newRoomName: '',
+    roomId: '',
+    playerList: [],
+    isPlaying: false,
+    timeLeft: 20,
   },
   methods: {
+    joinHall() {
+      if (this.userName === '') {
+        toastr.error('請輸入ID');
+        return;
+      }
+      this.connection.invoke('CreateUser', app.userName);
+      this.scenes = 'hall';
+    },
+    createRoom(e) {
+      if (this.newRoomName === '') {
+        toastr.error('請輸入房間名稱');
+        e.preventDefault();
+        return;
+      }
+      this.connection.invoke('CreateRoom', app.newRoomName);
+      this.scenes = 'room';
+      this.$nextTick(() => {
+        this.setBoard();
+      });
+    },
+    joinRoom(roomId) {
+      this.connection.invoke('JoinRoom', roomId);
+      this.scenes = 'room';
+      this.roomId = roomId;
+      this.$nextTick(() => {
+        this.setBoard();
+        this.resumeLeaveBtn();
+      });
+    },
+    leaveRoom() {
+      this.connection.invoke('LeaveRoom', this.roomId);
+      this.roomId = '';
+      this.scenes = 'hall';
+    },
+    setBoard() {
+      //綁定XY座標
+      let arr = document.querySelectorAll('#piece-group .piece');
+      for (let y = 1; y <= 15; y++) {
+        for (let x = 1; x <= 15; x++) {
+          this.pieceArray[y][x] = arr[(y - 1) * 15 + x - 1];
+          this.pieceArray[y][x].x = x;
+          this.pieceArray[y][x].y = y;
+          this.pieceArray[y][x].addEventListener('click', this.setPiece);
+        }
+      }
+      //更新雙方棋子
+      this.connection.on('UpdateBoard', function(x, y, color) {
+        let piece = app.pieceArray[y][x];
+        piece.classList.add('active');
+        piece.classList.replace(app.faction, color);
+        piece.removeEventListener('click', app.setPiece);
+      });
+    },
     piecePosition(i) {
       return {
         top: `${(Math.floor((i - 1) / 15) + 1) * 40}px`,
@@ -41,37 +95,26 @@ let app = new Vue({
         return console.error(err.toString());
       });
       // 禁止點擊
-
     },
-    joinHall() {
-      if (this.userName === '') {
-        toastr.error('請輸入ID');
-        return;
-      }
-      this.connection.invoke('CreateUser', app.userName);
-      this.scenes = 'hall';
+    startGame() {
+      
     },
-    createRoom() {
-      this.connection.invoke('CreateRoom', app.newRoomName);
+    focusInput() {
+      document.querySelector('#modal-room-name input').focus();
     },
-    joinRoom() {
-      this.connection.invoke('JoinRoom', app.newRoomName);
+    clearRoomName() {
+      this.newRoomName = '';
+    },
+    resumeLeaveBtn() {
+      document.querySelector('#room #leave-room').removeAttribute('disabled');
     }
   },
+  computed: {
+    startBtnControl() {
+      return this.isPlaying || this.playerList.length < 2;
+    },
+  },
   created: function() {
-    //FIXME: 進入房間再綁定座標
-    // this.$nextTick(() => {
-    //   // 綁定座標 1,1 ~ 15,15
-    //   let arr = document.querySelectorAll('#piece-group .piece');
-    //   for (let y = 1; y <= 15; y++) {
-    //     for (let x = 1; x <= 15; x++) {
-    //       this.pieceArray[y][x] = arr[(y - 1) * 15 + x - 1];
-    //       this.pieceArray[y][x].x = x;
-    //       this.pieceArray[y][x].y = y;
-    //       this.pieceArray[y][x].addEventListener('click', this.setPiece);
-    //     }
-    //   }
-    // });
     this.connection.start()
       .then(function() {})
       .catch(function(err) {
@@ -80,16 +123,18 @@ let app = new Vue({
     this.connection.on('UpdateUserCount', function(count) {
       app.userCount = count;
     });
-    this.connection.on('UpdateRoomList', function() {
-      
+    this.connection.on('UpdateRoomList', function(roomList) {
+      app.roomList = JSON.parse(roomList);
     });
-    //更新雙方棋子
-    // this.connection.on('UpdateBoard', function(x, y, color) {
-    //   let piece = app.pieceArray[y][x];
-    //   piece.classList.add('active');
-    //   piece.classList.replace(app.faction, color);
-    //   piece.removeEventListener('click', app.setPiece);
-    // });
-    // 更新在線人數
+    this.connection.on('ReturnRoomId', function(roomId) {
+      app.roomId = roomId;
+      app.resumeLeaveBtn();
+    });
+    this.connection.on('ReturnPlayers', function(playerList) {
+      app.playerList = JSON.parse(playerList);
+    });
+    this.$nextTick(() => {
+      this.$el.querySelector('#form-input-name input').focus();
+    });
   },
 });

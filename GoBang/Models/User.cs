@@ -7,11 +7,12 @@ namespace GoBang.Models
 {
 	public class User
 	{
-		public static Dictionary<string, User> UserList { get; set; }
+		public static List<User> UserList { get; set; }
+		public string ConnectionId { get; set; }
 		public string UserName { get; set; }
 		static User()
 		{
-			UserList = new Dictionary<string, User>();
+			UserList = new List<User>();
 		}
 	}
 }
