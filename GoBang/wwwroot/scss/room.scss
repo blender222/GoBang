@@ -84,8 +84,7 @@ body {
   }
   .thead {
     display: flex;
-    margin-bottom: 10px;
-    padding-bottom: 10px;
+    padding-bottom: 15px;
     border-bottom: 4px solid #ccc;
   }
   .thead .field:nth-child(1), .room-item .room-name {
@@ -105,6 +104,10 @@ body {
     display: flex;
     align-items: flex-end;
     border-bottom: 2px solid #ccc;
+    &:hover {
+      background-color: #777;
+      cursor: pointer;
+    }
   }
   #create-room {
     position: fixed;
@@ -130,7 +133,8 @@ body {
     padding: 33px 0 0 50px;
     width: 50%;
     .btn {
-      padding: 6px 36px;
+      padding: 6px 0;
+      width: 140px;
       & + .btn {
         margin-left: 10px;
       }
@@ -156,17 +160,34 @@ body {
   .player-list {
     --color: #999;
     .player {
-      padding: 10px 0 10px 20px;
-      font-size: 28px;
+      padding: 10px 0 10px 15px;
+      display: flex;
+      align-items: center;
       border-bottom: 1px solid var(--color);
       &, & * {
+        font-size: 28px;
         color: var(--color);
       }
       &.active, &.active * {
         --color: #fff;
       }
-      span {
+      .color {
+        @include size(25px, 25px);
+        margin-right: 20px;
+        border-radius: 50%;
+        background-color: #000;
+        &.black {
+          background-color: #000;
+        }
+        &.white {
+          background-color: #fff;
+        }
+      }
+      .user-name {
         margin-left: 30px;
+      }
+      .ready, .time-left {
+        margin: 0 15px 0 auto;
       }
     }
   }
@@ -177,6 +198,7 @@ body {
       height: 377px;
       border: 1px solid #fff;
       border-radius: 4px;
+      overflow-y: auto;
       .message {
         display: flex;
         span {
@@ -215,6 +237,9 @@ body {
     outline: 2px solid #ff0000;
     background-color: rgb(255, 189, 58);
     pointer-events: none;
+    &.playing {
+      pointer-events: auto;
+    }
   }
 }
 .line {

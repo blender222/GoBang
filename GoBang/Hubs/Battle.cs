@@ -12,45 +12,6 @@ namespace GoBang.Hubs
 {
 	public class Battle : Hub
 	{
-		public async Task CreateRoom(string roomName)
-		{
-			User firstUser = GetUser(Context.ConnectionId);
-			Room room = new Room(roomName, firstUser);
-			Room.RoomList.Add(room);
-
-			await Clients.Caller.SendAsync("ReturnRoomId", room.RoomId);
-			await Clients.Caller.SendAsync("ReturnPlayers", JsonSerializer.Serialize(room.PlayerList));
-			await UpdateRoomListToAll();
-		}
-		public async Task JoinRoom(string roomId)
-		{
-			Room room = GetRoom(roomId);
-			if (room.PlayerList.Count < 2)
-			{
-				room.AddUser(GetUser(Context.ConnectionId));
-			}
-			//更新房內玩家
-			foreach (var player in room.PlayerList)
-			{
-				await Clients.Client(player.ConnectionId)
-					.SendAsync("ReturnPlayers", JsonSerializer.Serialize(room.PlayerList));
-			}
-			await UpdateRoomListToAll();
-		}
-		public async Task LeaveRoom(string roomId)
-		{
-			Room room = GetRoom(roomId);
-			User user = GetUser(Context.ConnectionId);
-
-			room.PlayerList.Remove(user);
-			//更新房內玩家
-			foreach (var player in room.PlayerList)
-			{
-				await Clients.Client(player.ConnectionId)
-					.SendAsync("ReturnPlayers", JsonSerializer.Serialize(room.PlayerList));
-			}
-			await UpdateRoomListToAll();
-		}
 		public async Task CreateUser(string name)
 		{
 			User user = new User
@@ -63,10 +24,67 @@ namespace GoBang.Hubs
 			await Clients.All.SendAsync("UpdateUserCount", User.UserList.Count);
 			await UpdateRoomListToCaller();
 		}
-		public async Task SetPiece(int x, int y, string color)
+		public async Task CreateRoom(string roomName)
 		{
-			//todo 僅更新同房間棋盤
-			await Clients.All.SendAsync("UpdateBoard", x, y, color);
+			User firstUser = GetUser(Context.ConnectionId);
+			Room room = new Room(roomName, firstUser, Clients);
+			Room.RoomList.Add(room);
+
+			await Clients.Caller.SendAsync("ReturnRoomId", room.RoomId);
+			await Clients.Caller.SendAsync("ReturnPlayers", JsonSerializer.Serialize(room.PlayerList));
+			await Clients.Caller.SendAsync("ReturnIsGuest", false);
+			await UpdateRoomListToAll();
+		}
+		public async Task JoinRoom(string roomId)
+		{
+			Room room = GetRoom(roomId);
+			User user = GetUser(Context.ConnectionId);
+			bool isGuest = room.AddUser(user);
+
+			await Clients.Caller.SendAsync("ReturnIsGuest", isGuest);
+			await UpdateToAllInRoom(room, "ReturnPlayers", room.PlayerList);
+			await UpdateToAllInRoom(room, "UpdateReadyPlayer", room.ReadyArray);
+			await UpdateRoomListToAll();
+		}
+		public async Task LeaveRoom(string roomId)
+		{
+			Room room = GetRoom(roomId);
+			User user = GetUser(Context.ConnectionId);
+
+			room.PlayerList.Remove(user);
+			room.GuestList.Remove(user);
+			if (room.PlayerList.Count == 0 && room.GuestList.Count == 0)
+			{
+				Room.RoomList.Remove(room);
+			}
+
+			await UpdateToAllInRoom(room, "ReturnPlayers", room.PlayerList);
+			await UpdateRoomListToAll();
+		}
+		public async Task Ready(string roomId)
+		{
+			Room room = GetRoom(roomId);
+			User user = GetUser(Context.ConnectionId);
+
+			await room.Ready(user);
+
+			if (room.ReadyArray.Where(x => x == true).Count() == 2)
+			{
+				await StartGame(room);
+			}
+		}
+		public async Task Unready(string roomId)
+		{
+			Room room = GetRoom(roomId);
+			User user = GetUser(Context.ConnectionId);
+
+			await room.Unready(user);
+		}
+		public async Task SetPiece(string roomId, int x, int y, string color)
+		{
+			Room room = GetRoom(roomId);
+			room.SetPiece(x, y, color);
+			//await Clients.All.SendAsync("UpdateBoard", x, y, color);
 		}
 		public override Task OnConnectedAsync()
 		{
@@ -84,8 +102,10 @@ namespace GoBang.Hubs
 			if (room != null)
 			{
 				room.PlayerList.Remove(user);
-				//2.判斷房間人數是否為0並移除
-				if (room.PlayerList.Count == 0)
+				room.GuestList.Remove(user);
+				//room.ReadyList.Remove(user);
+				//2.判斷房間是否沒人並移除
+				if (room.PlayerList.Count == 0 && room.GuestList.Count == 0)
 				{
 					Room.RoomList.Remove(room);
 				}
@@ -93,15 +113,25 @@ namespace GoBang.Hubs
 			//3.從UserList移除User
 			User.UserList.Remove(user);
 
+			//todo 處理遊戲中斷線
+
 			await Clients.All.SendAsync("UpdateUserCount", User.UserList.Count);
 			await UpdateRoomListToAll();
 			await base.OnDisconnectedAsync(exception);
 		}
-		private User GetUser(string connectionId)
+		private async Task StartGame(Room room)
+		{
+			room.RoomStatus = (int)Status.Playing;
+
+			room.SetColor(room.PlayerList[0], room.PlayerList[1]);
+			await room.Start();
+			await UpdateRoomListToAll();
+		}
+		private static User GetUser(string connectionId)
 		{
 			return User.UserList.First(u => u.ConnectionId == connectionId);
 		}
-		private Room GetRoom(string roomId)
+		private static Room GetRoom(string roomId)
 		{
 			return Room.RoomList.First(x => x.RoomId == roomId);
 		}
@@ -122,9 +152,14 @@ namespace GoBang.Hubs
 			{
 				RoomId = x.RoomId,
 				RoomName = x.RoomName,
-				PlayerCount = x.PlayerList.Count,
+				PlayerCount = x.PlayerList.Count,//todo 此處造成大廳顯示房內人數錯誤 Guest沒算到
 				RoomStatus = x.RoomStatus
 			}));
+		}
+		private async Task UpdateToAllInRoom<T>(Room room, string method, T data)
+		{
+			var connectionIds = room.GetConnectionIds();
+			await Clients.Clients(connectionIds).SendAsync(method, JsonSerializer.Serialize(data));
 		}
 	}
 }

@@ -11,7 +11,7 @@ let app = new Vue({
   data: {
     scenes: 'initial',
     userName: '',
-    faction: 'black',
+    color: '',
     connection: new signalR.HubConnectionBuilder().withUrl("/goBangHub").build(),
     pieceArray: (function() {
       let arr = new Array(16);
@@ -25,8 +25,13 @@ let app = new Vue({
     newRoomName: '',
     roomId: '',
     playerList: [],
+    isReady: false,
     isPlaying: false,
-    timeLeft: 20,
+    isGuest: true,
+    timeLeft: 10,
+    turnFlag: null,
+    readyArray: [false, false],
+    playerColor: [null, null],
   },
   methods: {
     joinHall() {
@@ -62,6 +67,7 @@ let app = new Vue({
       this.connection.invoke('LeaveRoom', this.roomId);
       this.roomId = '';
       this.scenes = 'hall';
+      this.isReady = false;
     },
     setBoard() {
       //綁定XY座標
@@ -78,7 +84,7 @@ let app = new Vue({
       this.connection.on('UpdateBoard', function(x, y, color) {
         let piece = app.pieceArray[y][x];
         piece.classList.add('active');
-        piece.classList.replace(app.faction, color);
+        piece.classList.replace(app.color, color);
         piece.removeEventListener('click', app.setPiece);
       });
     },
@@ -91,13 +97,21 @@ let app = new Vue({
     setPiece(e) {
       console.log(`x: ${e.target.x}`, `y: ${e.target.y}`);
       // 發送資料
-      this.connection.invoke('SetPiece', e.target.x, e.target.y, this.faction).catch(function(err) {
+      this.connection.invoke('SetPiece', this.roomId, e.target.x, e.target.y, this.color).catch(function(err) {
         return console.error(err.toString());
       });
       // 禁止點擊
     },
-    startGame() {
-      
+    ready() {
+      this.connection.invoke('Ready', this.roomId);
+      this.isReady = true;
+    },
+    unready() {
+      this.connection.invoke('Unready', this.roomId);
+      this.isReady = false;
+    },
+    sendMessage() {
+      // this.connection.invoke('SendMessage', );
     },
     focusInput() {
       document.querySelector('#modal-room-name input').focus();
@@ -110,8 +124,10 @@ let app = new Vue({
     }
   },
   computed: {
-    startBtnControl() {
-      return this.isPlaying || this.playerList.length < 2;
+    readyBtnControl() {
+      return this.isPlaying ||
+              this.isGuest ||
+              this.playerList.length < 2;
     },
   },
   created: function() {
@@ -126,12 +142,37 @@ let app = new Vue({
     this.connection.on('UpdateRoomList', function(roomList) {
       app.roomList = JSON.parse(roomList);
     });
+    this.connection.on('UpdateReadyPlayer', function(data) {
+      app.readyArray = JSON.parse(data);
+    });
     this.connection.on('ReturnRoomId', function(roomId) {
       app.roomId = roomId;
       app.resumeLeaveBtn();
     });
     this.connection.on('ReturnPlayers', function(playerList) {
       app.playerList = JSON.parse(playerList);
+    });
+    this.connection.on('ReturnColor', function(color) {
+      app.color = color;
+    });
+    this.connection.on('ReturnPlayerColor', function(data) {
+      let colors = JSON.parse(data);
+      let tags = document.querySelectorAll('#room .player-list .color');
+      tags[0].classList.add(colors[0]);
+      tags[1].classList.add(colors[1]);
+    });
+    this.connection.on('ReturnIsGuest', function(isGuest) {
+      app.isGuest = isGuest;
+    });
+    this.connection.on('UpdateTimeLeft', function(timeLeft) {
+      app.timeLeft = timeLeft;
+    });
+    this.connection.on('StartGame', function() {
+      app.isPlaying = true;
+      //TODO: 關閉雙按鈕
+    });
+    this.connection.on('WhosTurn', function(turnFlag) {
+      app.turnFlag = turnFlag;
     });
     this.$nextTick(() => {
       this.$el.querySelector('#form-input-name input').focus();
