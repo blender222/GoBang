@@ -44,6 +44,11 @@ namespace GoBang.Hubs
 			await Clients.Caller.SendAsync("ReturnIsGuest", isGuest);
 			await UpdateToAllInRoom(room, "ReturnPlayers", room.PlayerList);
 			await UpdateToAllInRoom(room, "UpdateReadyPlayer", room.ReadyArray);
+			if (room.RoomStatus == (int)Status.Playing)
+			{
+				await UpdateToAllInRoom(room, "ReturnPlayerColor", room.GetPlayerColor());
+				await UpdateToAllInRoom(room, "ReturnPieceData", room.GetPieceData());
+			}
 			await UpdateRoomListToAll();
 		}
 		public async Task LeaveRoom(string roomId)
@@ -83,8 +88,14 @@ namespace GoBang.Hubs
 		public async Task SetPiece(string roomId, int x, int y, string color)
 		{
 			Room room = GetRoom(roomId);
-			room.SetPiece(x, y, color);
-			//await Clients.All.SendAsync("UpdateBoard", x, y, color);
+			await room.SetPiece(x, y, color);
+		}
+		public async Task SendMessage(string roomId, string message)
+		{
+			Room room = GetRoom(roomId);
+			User user = GetUser(Context.ConnectionId);
+
+			await Clients.Clients(room.GetConnectionIds()).SendAsync("UpdateMessage", user.UserName, message);
 		}
 		public override Task OnConnectedAsync()
 		{
@@ -123,7 +134,7 @@ namespace GoBang.Hubs
 		{
 			room.RoomStatus = (int)Status.Playing;
 
-			room.SetColor(room.PlayerList[0], room.PlayerList[1]);
+			await room.SetColor();
 			await room.Start();
 			await UpdateRoomListToAll();
 		}
@@ -146,7 +157,7 @@ namespace GoBang.Hubs
 			string result = GetRoomList();
 			await Clients.Caller.SendAsync("UpdateRoomList", result);
 		}
-		private string GetRoomList()
+		private static string GetRoomList()
 		{
 			return JsonSerializer.Serialize(Room.RoomList.Select(x => new
 			{

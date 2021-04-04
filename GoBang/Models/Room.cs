@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -24,9 +25,9 @@ namespace GoBang.Models
 		public User Black { get; set; }
 		public User White { get; set; }
 		private Timer Counter { get; set; }
-		private int TimeLeft { get; set; }
-		private bool TurnFlag { get; set; } //ture輪到黑 false輪到白
 		private int[,] PieceGrid { get; set; }
+		private int TimeLeft { get; set; }
+		private int TurnIndex { get; set; } //正在下的玩家所在的PlayerList的Index
 
 		public Room(string roomName, User firstUser, IHubCallerClients clients)
 		{
@@ -37,8 +38,6 @@ namespace GoBang.Models
 			this.PlayerList = new List<User> { firstUser };
 			this.GuestList = new List<User>();
 			this.ReadyArray = new bool[2];
-			this.PieceGrid = new int[15, 15];
-			this.TurnFlag = true;
 		}
 		static Room()
 		{
@@ -87,59 +86,152 @@ namespace GoBang.Models
 				throw new Exception("取消準備錯誤 不包含此User");
 			}
 		}
-		public void SetColor(User user1, User user2)
+		public async Task SetColor()
 		{
 			Random rand = new Random();
-			int seed = rand.Next(1, 3);
+			int firstIndex = rand.Next(0, 2);
 
-			if (seed == 1)
+			this.TurnIndex = firstIndex;
+			if (firstIndex == 0)
 			{
-				this.Black = user1;
-				this.White = user2;
+				this.Black = this.PlayerList[0];
+				this.White = this.PlayerList[1];
 			}
 			else
 			{
-				this.Black = user2;
-				this.White = user1;
+				this.Black = this.PlayerList[1];
+				this.White = this.PlayerList[0];
 			}
+			await Clients.Client(this.Black.ConnectionId).SendAsync("MyColor", "black");
+			await Clients.Client(this.White.ConnectionId).SendAsync("MyColor", "white");
 		}
 		public async Task Start()
 		{
+			this.PieceGrid = new int[16, 16];
 			this.TimeLeft = TurnSeconds;
 			this.Counter = new Timer(Countdown, null, 0, 1000);
 			var connectionIds = GetConnectionIds();
 
-			await Clients.Client(this.Black.ConnectionId).SendAsync("ReturnColor", "black");
-			await Clients.Client(this.White.ConnectionId).SendAsync("ReturnColor", "white");
-			await Clients.Clients(connectionIds).SendAsync("WhosTurn", this.TurnFlag);
+			await Clients.Clients(connectionIds).SendAsync("ReturnTurnIndex", this.TurnIndex);
+			await Clients.Client(this.PlayerList[0].ConnectionId).SendAsync("ControlBoard", this.TurnIndex == 0);
+			await Clients.Client(this.PlayerList[1].ConnectionId).SendAsync("ControlBoard", this.TurnIndex == 1);
 			await Clients.Clients(connectionIds).SendAsync("StartGame");
 			await Clients.Clients(connectionIds).SendAsync("ReturnPlayerColor", JsonSerializer.Serialize(GetPlayerColor()));
 		}
 		private async void Countdown(object state)
 		{
+			var connectionIds = GetConnectionIds();
 			if (TimeLeft == 0)
 			{
-				this.TurnFlag = !this.TurnFlag;
-				this.TimeLeft = TurnSeconds;
 				//todo 時間到 決定勝負
+
 			}
-			var connectionIds = GetConnectionIds();
 			await Clients.Clients(connectionIds).SendAsync("UpdateTimeLeft", this.TimeLeft);
 
 			TimeLeft--;
 		}
 		public async Task SetPiece(int x, int y, string color)
 		{
-			this.TurnFlag = !this.TurnFlag;
+			this.TurnIndex = (this.TurnIndex == 0) ? 1 : 0;
+
 			this.TimeLeft = TurnSeconds;
 			this.Counter.Dispose();
 			this.Counter = new Timer(Countdown, null, 0, 1000);
 
-			int pieceInt = GetColorInt(color);
-			this.PieceGrid[x, y] = pieceInt;
-			//todo 檢查勝負
+			int pieceInt = ColorToInt(color);
+			if (this.PieceGrid[y, x] == 0)
+			{
+				this.PieceGrid[y, x] = pieceInt;
+			}
+			else
+			{
+				throw new Exception($"棋盤資料異常 y = {y}, x = {x}");
+			}
 
-			await Clients.Clients(GetConnectionIds()).SendAsync("UpdateBoard", x, y, color);
+			var connectionIds = GetConnectionIds();
+			await Clients.Clients(connectionIds).SendAsync("ReturnTurnIndex", this.TurnIndex);
+			await Clients.Clients(connectionIds).SendAsync("UpdateBoard", x, y, color);
+			await Clients.Client(this.PlayerList[0].ConnectionId).SendAsync("ControlBoard", this.TurnIndex == 0);
+			await Clients.Client(this.PlayerList[1].ConnectionId).SendAsync("ControlBoard", this.TurnIndex == 1);
+
+			int tempX = x;
+			int tempY = y;
+
+			if (CheckFive(1, 0, x, y, pieceInt) ||
+					CheckFive(0, 1, x, y, pieceInt) ||
+					CheckFive(1, 1, x, y, pieceInt) ||
+					CheckFive(1, -1, x, y, pieceInt))
+			{
+				ResetGame();
+				await Clients.Clients(connectionIds).SendAsync("EndGame", color);
+			}
+
+			Debug.WriteLine("   1 2 3 4 5 6 7 8 9 0 1 2 3 4 5");
+			for (int i = 1; i <= 15; i++)
+			{
+				Debug.Write(i.ToString().PadLeft(2) + " ");
+				for (int j = 1; j <= 15; j++)
+				{
+					Debug.Write(this.PieceGrid[i, j] + " ");
+				}
+				Debug.Write("\n");
+			}
+			Debug.WriteLine("========================================");
+		}
+		public List<int[]> GetPieceData()
+		{
+			List<int[]> data = new List<int[]>();
+			for (int y = 1; y <= 15; y++)
+			{
+				for (int x = 1; x <= 15; x++)
+				{
+					if (this.PieceGrid[y, x] != 0)
+						data.Add(new int[] { x, y, this.PieceGrid[y, x] });
+				}
+			}
+			return data;
+		}
+		public bool CheckFive(int diffX, int diffY, int x, int y, int pieceInt)
+		{
+			int total = 1;
+			int x0 = x;
+			int y0 = y;
+			while (true)
+			{
+				x += diffX;
+				y += diffY;
+				if (IsInRange(x, y) && this.PieceGrid[y, x] == pieceInt)
+					total++;
+				else
+					break;
+			}
+			x = x0;
+			y = y0;
+			while (true)
+			{
+				x -= diffX;
+				y -= diffY;
+				if (IsInRange(x, y) && this.PieceGrid[y, x] == pieceInt)
+					total++;
+				else
+					break;
+			}
+			return total >= 5;
+		}
+		public static bool IsInRange(int x, int y)
+		{
+			if (x > 15 || x < 1) return false;
+			if (y > 15 || y < 1) return false;
+			return true;
+		}
+		public void ResetGame()
+		{
+			this.TimeLeft = TurnSeconds;
+			this.Counter.Dispose();
+			this.RoomStatus = (int)Status.Waiting;
+			this.ReadyArray = new bool[2];
+			this.Black = null;
+			this.White = null;
 		}
 		public IEnumerable<string> GetConnectionIds()
 		{
@@ -153,7 +245,10 @@ namespace GoBang.Models
 
 			return result;
 		}
-		private int GetColorInt(string color) //黑1 白2
+		/// <summary>
+		/// 黑 = 1, 白 = 2
+		/// </summary>
+		private static int ColorToInt(string color)
 		{
 			if (color == "black") return 1;
 			if (color == "white") return 2;

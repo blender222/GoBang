@@ -5,6 +5,8 @@ toastr.options = {
   'preventDuplicates': true,
   'positionClass': 'toast-top-center',
 };
+const timeLeft = 10;
+const roomStatus = ['等待中', '進行中'];
 
 let app = new Vue({
   el: '#app',
@@ -28,10 +30,11 @@ let app = new Vue({
     isReady: false,
     isPlaying: false,
     isGuest: true,
-    timeLeft: 10,
-    turnFlag: null,
+    timeLeft: timeLeft,
+    turnIndex: null,
     readyArray: [false, false],
-    playerColor: [null, null],
+    message: '',
+    messageQueue: [],
   },
   methods: {
     joinHall() {
@@ -77,15 +80,16 @@ let app = new Vue({
           this.pieceArray[y][x] = arr[(y - 1) * 15 + x - 1];
           this.pieceArray[y][x].x = x;
           this.pieceArray[y][x].y = y;
-          this.pieceArray[y][x].addEventListener('click', this.setPiece);
+          this.pieceArray[y][x].onclick = this.setPiece;
         }
       }
       //更新雙方棋子
       this.connection.on('UpdateBoard', function(x, y, color) {
         let piece = app.pieceArray[y][x];
         piece.classList.add('active');
-        piece.classList.replace(app.color, color);
-        piece.removeEventListener('click', app.setPiece);
+        if (app.color) piece.classList.remove(app.color);
+        piece.classList.add(color);
+        piece.onclick = null;
       });
     },
     piecePosition(i) {
@@ -95,12 +99,9 @@ let app = new Vue({
       }
     },
     setPiece(e) {
-      console.log(`x: ${e.target.x}`, `y: ${e.target.y}`);
-      // 發送資料
       this.connection.invoke('SetPiece', this.roomId, e.target.x, e.target.y, this.color).catch(function(err) {
         return console.error(err.toString());
       });
-      // 禁止點擊
     },
     ready() {
       this.connection.invoke('Ready', this.roomId);
@@ -111,7 +112,8 @@ let app = new Vue({
       this.isReady = false;
     },
     sendMessage() {
-      // this.connection.invoke('SendMessage', );
+      if (this.message === '') return;
+      this.connection.invoke('SendMessage', this.roomId, this.message);
     },
     focusInput() {
       document.querySelector('#modal-room-name input').focus();
@@ -121,14 +123,20 @@ let app = new Vue({
     },
     resumeLeaveBtn() {
       document.querySelector('#room #leave-room').removeAttribute('disabled');
-    }
+    },
+    closeEndGame(e) {
+      e.target.closest('#end-game').classList.remove('show');
+    },
   },
   computed: {
     readyBtnControl() {
       return this.isPlaying ||
-              this.isGuest ||
-              this.playerList.length < 2;
+        this.isGuest ||
+        this.playerList.length < 2;
     },
+    leaveBtnControl() {
+      return this.isGuest || this.isPlaying;
+    }
   },
   created: function() {
     this.connection.start()
@@ -140,20 +148,28 @@ let app = new Vue({
       app.userCount = count;
     });
     this.connection.on('UpdateRoomList', function(roomList) {
-      app.roomList = JSON.parse(roomList);
+      let list = JSON.parse(roomList);
+      list.forEach((room) => {
+        room.RoomStatus = roomStatus[room.RoomStatus];
+      });
+      app.roomList = list;
     });
     this.connection.on('UpdateReadyPlayer', function(data) {
       app.readyArray = JSON.parse(data);
+    });
+    this.connection.on('MyColor', function(color) {
+      app.color = '';
+      app.color = color;
     });
     this.connection.on('ReturnRoomId', function(roomId) {
       app.roomId = roomId;
       app.resumeLeaveBtn();
     });
+    this.connection.on('ReturnIsGuest', function(isGuest) {
+      app.isGuest = isGuest;
+    });
     this.connection.on('ReturnPlayers', function(playerList) {
       app.playerList = JSON.parse(playerList);
-    });
-    this.connection.on('ReturnColor', function(color) {
-      app.color = color;
     });
     this.connection.on('ReturnPlayerColor', function(data) {
       let colors = JSON.parse(data);
@@ -161,18 +177,61 @@ let app = new Vue({
       tags[0].classList.add(colors[0]);
       tags[1].classList.add(colors[1]);
     });
-    this.connection.on('ReturnIsGuest', function(isGuest) {
-      app.isGuest = isGuest;
+    this.connection.on('ReturnPieceData', function(pieceData) {
+      let dataList = JSON.parse(pieceData);
+      console.log(dataList);
+      dataList.forEach((data) => {
+        let piece = app.pieceArray[data[1]][data[0]];
+        piece.classList.add('active');
+        piece.classList.add(data[2] == 1 ? 'black' : 'white');
+      });
     });
     this.connection.on('UpdateTimeLeft', function(timeLeft) {
       app.timeLeft = timeLeft;
     });
     this.connection.on('StartGame', function() {
       app.isPlaying = true;
-      //TODO: 關閉雙按鈕
+      app.isReady = false;
+      for (let y = 1; y <= 15; y++) {
+        for (let x = 1; x <= 15; x++) {
+          app.pieceArray[y][x].onclick = app.setPiece;
+          app.pieceArray[y][x].classList.remove('active', 'black', 'white');
+          if (app.color) app.pieceArray[y][x].classList.add(app.color);
+        }
+      }
     });
-    this.connection.on('WhosTurn', function(turnFlag) {
-      app.turnFlag = turnFlag;
+    this.connection.on('EndGame', function(winner) {
+      let winnerText = winner === 'black' ? '黑子' : '白子';
+      let endGame = app.$el.querySelector('#end-game');
+
+      endGame.classList.add('show');
+      endGame.querySelector('.winner').textContent = winnerText;
+      setTimeout(() => {
+        endGame.classList.remove('show');
+      }, 5000);
+
+      app.isPlaying = false;
+      app.timeLeft = timeLeft;
+      app.readyArray = [false, false];
+      app.turnIndex = null;
+      app.$el.querySelector('#board').classList.remove('my-turn');
+    });
+    this.connection.on('ReturnTurnIndex', function(turnIndex) {
+      app.turnIndex = turnIndex;
+    });
+    this.connection.on('ControlBoard', function(isMyTurn) {
+      if (isMyTurn)
+        app.$el.querySelector('#board').classList.add('my-turn');
+      else
+        app.$el.querySelector('#board').classList.remove('my-turn');
+    });
+    this.connection.on('UpdateMessage', function(userName, message) {
+      app.messageQueue.push({
+        user: userName,
+        message: message,
+      });
+      if (app.messageQueue.length > 40)
+        app.messageQueue.shift();
     });
     this.$nextTick(() => {
       this.$el.querySelector('#form-input-name input').focus();

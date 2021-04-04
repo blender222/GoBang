@@ -6,6 +6,7 @@ html, body {
 body {
   display: flex;
   background-color: #555;
+  overflow-y: hidden;
 }
 #app {
   width: 100%;
@@ -17,7 +18,7 @@ body {
     font-weight: 600;
   }
   .btn {
-    padding: 8px 16px;
+    padding: 8px 32px;
     border-radius: 4px;
     cursor: pointer;
     box-shadow: none;
@@ -129,7 +130,7 @@ body {
   * {
     font-size: 22px;
   }
-  .panel {
+  #panel {
     padding: 33px 0 0 50px;
     width: 50%;
     .btn {
@@ -140,28 +141,13 @@ body {
       }
     }
   }
-  .other {
-    display: flex;
-    align-items: flex-end;
-    .btn {
-      margin-bottom: 10px;
-    }
-    .time-left {
-      margin-left: auto;
-      font-size: 36px;
-      span {
-        display: inline-block;
-        width: 90px;
-        font-size: 56px;
-        text-align: center;
-      }
-    }
-  }
   .player-list {
     --color: #999;
+    margin-bottom: 15px;
     .player {
       padding: 10px 0 10px 15px;
       display: flex;
+      height: 63px;
       align-items: center;
       border-bottom: 1px solid var(--color);
       &, & * {
@@ -172,14 +158,15 @@ body {
         --color: #fff;
       }
       .color {
-        @include size(25px, 25px);
-        margin-right: 20px;
+        @include size(30px, 30px);
+        background-color: transparent;
         border-radius: 50%;
-        background-color: #000;
-        &.black {
+        transform: translateY(2px);
+        box-shadow: 0 0 5px #aaa;
+        &.show.black {
           background-color: #000;
         }
-        &.white {
+        &.show.white {
           background-color: #fff;
         }
       }
@@ -189,6 +176,13 @@ body {
       .ready, .time-left {
         margin: 0 15px 0 auto;
       }
+    }
+  }
+  .other {
+    display: flex;
+    align-items: flex-end;
+    .btn {
+      margin: 15px 0 15px;
     }
   }
   .chat {
@@ -202,14 +196,32 @@ body {
       .message {
         display: flex;
         span {
+          margin-bottom: 8px;
+          padding: 2px 16px 6px;
           display: flex;
-          font-size: 18px;
+          font-size: 20px;
         }
         span:nth-child(1) {
-          width: 30%;
           display: flex;
           justify-content: flex-end;
-          padding-right: 18px;
+          min-width: 80px;
+          margin-right: 13px;
+        }
+        span:nth-child(2) {
+          position: relative;
+          border-radius: 4px;
+          background-color: #777;
+          &::before {
+            @include size(0px, 0px);
+            position: absolute;
+            top: 50%;
+            right: 98%;
+            transform: translateY(-50%);
+            content: '';
+            border-right: 18px solid #777;
+            border-top: 6px solid transparent;
+            border-bottom: 6px solid transparent;
+          }
         }
       }
     }
@@ -237,8 +249,32 @@ body {
     outline: 2px solid #ff0000;
     background-color: rgb(255, 189, 58);
     pointer-events: none;
-    &.playing {
+    &.my-turn {
       pointer-events: auto;
+    }
+  }
+  #end-game {
+    display: none;
+    flex-direction: column;
+    position: absolute;
+    align-items: center;
+    @include size(100%, 100%);
+    .text {
+      margin-top: 100px;
+      * {
+        font-size: 120px;
+      }
+    }
+    button {
+      margin-top: 180px;
+      padding-left: 80px;
+      padding-right: 80px;
+      font-size: 36px;
+      border: 1px solid #000;
+    }
+    background-color: rgba(0, 0, 0, 0.7);
+    &.show {
+      display: flex;
     }
   }
 }

@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Room - 五子棋</title>
+  <title>五子棋</title>
 
   <link rel="stylesheet" href="../lib/bootstrap/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="../lib/bootstrap-vue/bootstrap-vue.min.css">
@@ -36,9 +36,10 @@
           <div class="room-status">{{ room.RoomStatus }}</div>
         </div>
       </div>
-      <button type="button" id="create-room" 
+      <button type="button" id="create-room"
         v-b-modal.modal-room-name
-        @click="clearRoomName">創建房間
+        @click="clearRoomName">
+        創建房間
       </button>
       <b-modal id="modal-room-name" title="房間名稱"
         ok-title="確認"
@@ -50,43 +51,40 @@
       </b-modal>
     </div>
     <div id="room" v-if="scenes == 'room'">
-      <div class="panel">
+      <div id="panel">
         <div class="player-list">
-          <div class="player" :class="{ active: turnFlag }">
-            <div class="color" v-if="isPlaying"></div>
-            <span>玩家 1</span>
+          <div class="player" :class="{ active: !isPlaying || turnIndex == 0 }">
+            <div class="color" :class="{ show: isPlaying }"></div>
             <span class="user-name">{{ playerList[0] == undefined ? '' : playerList[0].UserName }}</span>
             <span class="ready" v-if="!isPlaying && readyArray[0]">準備</span>
-            <span class="time-left" v-if="isPlaying && turnFlag">{{ timeLeft }}</span>
+            <span class="time-left" v-if="isPlaying && turnIndex == 0">{{ timeLeft }}</span>
           </div>
-          <div class="player" :class="{ active: !turnFlag }">
-            <div class="color" v-if="isPlaying"></div>
-            <span>玩家 2</span>
+          <div class="player" :class="{ active: !isPlaying || turnIndex == 1 }">
+            <div class="color" :class="{ show: isPlaying }"></div>
             <span class="user-name">{{ playerList[1] == undefined ? '' : playerList[1].UserName }}</span>
             <span class="ready" v-if="!isPlaying && readyArray[1]">準備</span>
-            <span class="time-left" v-if="isPlaying && !turnFlag">{{ timeLeft }}</span>
+            <span class="time-left" v-if="isPlaying && turnIndex == 1">{{ timeLeft }}</span>
           </div>
         </div>
         <div class="other">
-          <button id="leave-room" class="btn white" @click="leaveRoom" disabled>離開</button>
+          <button id="leave-room" class="btn white" @click="leaveRoom" :disabled="leaveBtnControl">離開</button>
           <button class="btn blue" v-if="!isReady" @click="ready" :disabled="readyBtnControl">準備</button>
           <button class="btn blue" v-else @click="unready" :disabled="readyBtnControl">取消準備</button>
-          <div class="time-left">剩餘時間<span>{{ timeLeft }}</span>秒</div>
         </div>
         <div class="chat">
           <div class="output">
-            <div class="message">
-              <span>玩家玩家玩家玩家玩家</span>
-              <span>訊息</span>
+            <div class="message" v-for="item in messageQueue">
+              <span>{{ item.user }}</span>
+              <span>{{ item.message }}</span>
             </div>
           </div>
           <div class="send">
-            <input type="text">
+            <input v-model="message" @keyup.enter="sendMessage" type="text" >
             <button class="btn blue" @click="sendMessage">送出</button>
           </div>
         </div>
       </div>
-      <div id="board" :class="{ playing: turnFlag }">
+      <div id="board">
         <div>
           <div class="line horizontal" v-for="i in 15"></div>
         </div>
@@ -99,6 +97,13 @@
         <div id="piece-group">
           <div class="piece" :class="color" v-for="i in 225" :style="piecePosition(i)"></div>
         </div>
+      </div>
+      <div id="end-game">
+        <div class="text d-flex">
+          <div class="winner">黑子</div>
+          <div class="ml-4">勝</div>
+        </div>
+        <button class="btn blue" @click="closeEndGame">確認</button>
       </div>
     </div>
     <div id="user-count" v-if="scenes != 'room'">在線人數&nbsp;&nbsp;&nbsp;{{ userCount }}</div>
