@@ -10,7 +10,7 @@ using System.Text.Json.Serialization;
 
 namespace GoBang.Hubs
 {
-	public class Battle : Hub
+	public class GoBangHub : Hub
 	{
 		public async Task CreateUser(string name)
 		{
@@ -33,23 +33,31 @@ namespace GoBang.Hubs
 			await Clients.Caller.SendAsync("ReturnRoomId", room.RoomId);
 			await Clients.Caller.SendAsync("ReturnPlayers", JsonSerializer.Serialize(room.PlayerList));
 			await Clients.Caller.SendAsync("ReturnIsGuest", false);
-			await UpdateRoomListToAll();
+			await UpdateRoomListToHall();
 		}
 		public async Task JoinRoom(string roomId)
 		{
 			Room room = GetRoom(roomId);
 			User user = GetUser(Context.ConnectionId);
 			bool isGuest = room.AddUser(user);
+			bool isPlaying = room.RoomStatus == (int)Status.Playing;
 
 			await Clients.Caller.SendAsync("ReturnIsGuest", isGuest);
+			await Clients.Caller.SendAsync("ReturnIsPlaying", isPlaying);
 			await UpdateToAllInRoom(room, "ReturnPlayers", room.PlayerList);
-			await UpdateToAllInRoom(room, "UpdateReadyPlayer", room.ReadyArray);
-			if (room.RoomStatus == (int)Status.Playing)
+
+			if (isPlaying)
 			{
 				await UpdateToAllInRoom(room, "ReturnPlayerColor", room.GetPlayerColor());
 				await UpdateToAllInRoom(room, "ReturnPieceData", room.GetPieceData());
+				await Clients.Caller.SendAsync("ReturnTurnIndex", room.TurnIndex);
+				await Clients.Caller.SendAsync("UpdateTimeLeft", room.TimeLeft);
 			}
-			await UpdateRoomListToAll();
+			else
+			{
+				await UpdateToAllInRoom(room, "UpdateReadyPlayer", room.ReadyArray);
+			}
+			await UpdateRoomListToHall();
 		}
 		public async Task LeaveRoom(string roomId)
 		{
@@ -58,13 +66,13 @@ namespace GoBang.Hubs
 
 			room.PlayerList.Remove(user);
 			room.GuestList.Remove(user);
-			if (room.PlayerList.Count == 0 && room.GuestList.Count == 0)
+			if (room.PlayerList.Count + room.GuestList.Count == 0)
 			{
 				Room.RoomList.Remove(room);
 			}
 
 			await UpdateToAllInRoom(room, "ReturnPlayers", room.PlayerList);
-			await UpdateRoomListToAll();
+			await UpdateRoomListToHall();
 		}
 		public async Task Ready(string roomId)
 		{
@@ -108,26 +116,47 @@ namespace GoBang.Hubs
 			User user = GetUser(Context.ConnectionId);
 
 			//1.判斷User是否在房內並移除
-			var room = Room.RoomList.FirstOrDefault(x => x.PlayerList.Contains(user));
+			var room = Room.RoomList.FirstOrDefault(x => x.PlayerList.Contains(user) || x.GuestList.Contains(user));
 
 			if (room != null)
 			{
-				room.PlayerList.Remove(user);
-				room.GuestList.Remove(user);
-				//room.ReadyList.Remove(user);
-				//2.判斷房間是否沒人並移除
-				if (room.PlayerList.Count == 0 && room.GuestList.Count == 0)
+				int playerIndex = room.PlayerList.IndexOf(user);
+				//2.Player or Guest?
+				if (playerIndex != -1)
+				{
+					room.PlayerList.Remove(user);
+					//3.是否在遊戲中
+					if (room.RoomStatus == (int)Status.Playing)
+					{
+						string winner;
+						if (room.Black.Equals(user))
+							winner = "white";
+						else
+							winner = "black";
+						await Clients.Clients(room.GetConnectionIds()).SendAsync("EndGame", winner);
+						room.ResetGame();
+					}
+					else
+					{
+						room.ReadyArray[playerIndex] = false;
+					}
+				}
+				else
+				{
+					room.GuestList.Remove(user);
+				}
+
+				//4.判斷房間是否沒人並移除
+				if (room.PlayerList.Count + room.GuestList.Count == 0)
 				{
 					Room.RoomList.Remove(room);
 				}
 			}
-			//3.從UserList移除User
+			//5.從UserList移除User
 			User.UserList.Remove(user);
 
-			//todo 處理遊戲中斷線
-
 			await Clients.All.SendAsync("UpdateUserCount", User.UserList.Count);
-			await UpdateRoomListToAll();
+			await UpdateRoomListToHall();
 			await base.OnDisconnectedAsync(exception);
 		}
 		private async Task StartGame(Room room)
@@ -136,7 +165,7 @@ namespace GoBang.Hubs
 
 			await room.SetColor();
 			await room.Start();
-			await UpdateRoomListToAll();
+			await UpdateRoomListToHall();
 		}
 		private static User GetUser(string connectionId)
 		{
@@ -146,26 +175,14 @@ namespace GoBang.Hubs
 		{
 			return Room.RoomList.First(x => x.RoomId == roomId);
 		}
-		private async Task UpdateRoomListToAll()
+		private async Task UpdateRoomListToHall()
 		{
-			string result = GetRoomList();
-			//todo 僅對大廳內的人發送
-			await Clients.All.SendAsync("UpdateRoomList", result);
+			//todo 僅對大廳內的人發送(非必要)
+			await Clients.All.SendAsync("UpdateRoomList", Room.GetRoomList());
 		}
 		private async Task UpdateRoomListToCaller()
 		{
-			string result = GetRoomList();
-			await Clients.Caller.SendAsync("UpdateRoomList", result);
-		}
-		private static string GetRoomList()
-		{
-			return JsonSerializer.Serialize(Room.RoomList.Select(x => new
-			{
-				RoomId = x.RoomId,
-				RoomName = x.RoomName,
-				PlayerCount = x.PlayerList.Count,//todo 此處造成大廳顯示房內人數錯誤 Guest沒算到
-				RoomStatus = x.RoomStatus
-			}));
+			await Clients.Caller.SendAsync("UpdateRoomList", Room.GetRoomList());
 		}
 		private async Task UpdateToAllInRoom<T>(Room room, string method, T data)
 		{

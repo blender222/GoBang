@@ -25,9 +25,9 @@ namespace GoBang.Models
 		public User Black { get; set; }
 		public User White { get; set; }
 		private Timer Counter { get; set; }
+		public int TimeLeft { get; set; }
+		public int TurnIndex { get; set; } //正在下的玩家所在的PlayerList的Index
 		private int[,] PieceGrid { get; set; }
-		private int TimeLeft { get; set; }
-		private int TurnIndex { get; set; } //正在下的玩家所在的PlayerList的Index
 
 		public Room(string roomName, User firstUser, IHubCallerClients clients)
 		{
@@ -42,6 +42,16 @@ namespace GoBang.Models
 		static Room()
 		{
 			RoomList = new List<Room>();
+		}
+		public static string GetRoomList()
+		{
+			return JsonSerializer.Serialize(Room.RoomList.Select(x => new
+			{
+				RoomId = x.RoomId,
+				RoomName = x.RoomName,
+				UserCount = x.PlayerList.Count + x.GuestList.Count,
+				RoomStatus = x.RoomStatus
+			}));
 		}
 		public bool AddUser(User user)
 		{
@@ -108,6 +118,7 @@ namespace GoBang.Models
 		public async Task Start()
 		{
 			this.PieceGrid = new int[16, 16];
+			this.ReadyArray = new bool[2];
 			this.TimeLeft = TurnSeconds;
 			this.Counter = new Timer(Countdown, null, 0, 1000);
 			var connectionIds = GetConnectionIds();
@@ -127,7 +138,6 @@ namespace GoBang.Models
 
 			}
 			await Clients.Clients(connectionIds).SendAsync("UpdateTimeLeft", this.TimeLeft);
-
 			TimeLeft--;
 		}
 		public async Task SetPiece(int x, int y, string color)
@@ -140,13 +150,9 @@ namespace GoBang.Models
 
 			int pieceInt = ColorToInt(color);
 			if (this.PieceGrid[y, x] == 0)
-			{
 				this.PieceGrid[y, x] = pieceInt;
-			}
 			else
-			{
 				throw new Exception($"棋盤資料異常 y = {y}, x = {x}");
-			}
 
 			var connectionIds = GetConnectionIds();
 			await Clients.Clients(connectionIds).SendAsync("ReturnTurnIndex", this.TurnIndex);
@@ -164,19 +170,19 @@ namespace GoBang.Models
 			{
 				ResetGame();
 				await Clients.Clients(connectionIds).SendAsync("EndGame", color);
+				await Clients.AllExcept(connectionIds).SendAsync("UpdateRoomList", Room.GetRoomList());
 			}
-
-			Debug.WriteLine("   1 2 3 4 5 6 7 8 9 0 1 2 3 4 5");
-			for (int i = 1; i <= 15; i++)
-			{
-				Debug.Write(i.ToString().PadLeft(2) + " ");
-				for (int j = 1; j <= 15; j++)
-				{
-					Debug.Write(this.PieceGrid[i, j] + " ");
-				}
-				Debug.Write("\n");
-			}
-			Debug.WriteLine("========================================");
+			//Debug.WriteLine("   1 2 3 4 5 6 7 8 9 0 1 2 3 4 5");
+			//for (int i = 1; i <= 15; i++)
+			//{
+			//	Debug.Write(i.ToString().PadLeft(2) + " ");
+			//	for (int j = 1; j <= 15; j++)
+			//	{
+			//		Debug.Write(this.PieceGrid[i, j] + " ");
+			//	}
+			//	Debug.Write("\n");
+			//}
+			//Debug.WriteLine("========================================");
 		}
 		public List<int[]> GetPieceData()
 		{
@@ -229,7 +235,6 @@ namespace GoBang.Models
 			this.TimeLeft = TurnSeconds;
 			this.Counter.Dispose();
 			this.RoomStatus = (int)Status.Waiting;
-			this.ReadyArray = new bool[2];
 			this.Black = null;
 			this.White = null;
 		}

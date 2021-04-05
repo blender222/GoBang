@@ -5,7 +5,6 @@ toastr.options = {
   'preventDuplicates': true,
   'positionClass': 'toast-top-center',
 };
-const timeLeft = 10;
 const roomStatus = ['等待中', '進行中'];
 
 let app = new Vue({
@@ -29,8 +28,8 @@ let app = new Vue({
     playerList: [],
     isReady: false,
     isPlaying: false,
-    isGuest: true,
-    timeLeft: timeLeft,
+    isGuest: null,
+    timeLeft: null,
     turnIndex: null,
     readyArray: [false, false],
     message: '',
@@ -68,9 +67,16 @@ let app = new Vue({
     },
     leaveRoom() {
       this.connection.invoke('LeaveRoom', this.roomId);
-      this.roomId = '';
       this.scenes = 'hall';
+      this.roomId = '';
       this.isReady = false;
+      this.isPlaying = false;
+      this.isGuest = null;
+      this.timeLeft = null;
+      this.turnIndex = null;
+      this.playerList = [];
+      this.message = '';
+      this.messageQueue = [];
     },
     setBoard() {
       //綁定XY座標
@@ -99,7 +105,8 @@ let app = new Vue({
       }
     },
     setPiece(e) {
-      this.connection.invoke('SetPiece', this.roomId, e.target.x, e.target.y, this.color).catch(function(err) {
+      this.connection.invoke('SetPiece', this.roomId, e.target.x, e.target.y, this.color)
+      .catch(function(err) {
         return console.error(err.toString());
       });
     },
@@ -114,6 +121,7 @@ let app = new Vue({
     sendMessage() {
       if (this.message === '') return;
       this.connection.invoke('SendMessage', this.roomId, this.message);
+      this.message = '';
     },
     focusInput() {
       document.querySelector('#modal-room-name input').focus();
@@ -124,18 +132,18 @@ let app = new Vue({
     resumeLeaveBtn() {
       document.querySelector('#room #leave-room').removeAttribute('disabled');
     },
-    closeEndGame(e) {
+    closeGameResult(e) {
       e.target.closest('#end-game').classList.remove('show');
     },
   },
   computed: {
     readyBtnControl() {
       return this.isPlaying ||
-        this.isGuest ||
-        this.playerList.length < 2;
+            this.isGuest ||
+            this.playerList.length < 2;
     },
     leaveBtnControl() {
-      return this.isGuest || this.isPlaying;
+      return !this.isGuest && this.isPlaying;
     }
   },
   created: function() {
@@ -165,6 +173,9 @@ let app = new Vue({
       app.roomId = roomId;
       app.resumeLeaveBtn();
     });
+    this.connection.on('ReturnIsPlaying', function(isPlaying) {
+      app.isPlaying = isPlaying;
+    });
     this.connection.on('ReturnIsGuest', function(isGuest) {
       app.isGuest = isGuest;
     });
@@ -179,7 +190,6 @@ let app = new Vue({
     });
     this.connection.on('ReturnPieceData', function(pieceData) {
       let dataList = JSON.parse(pieceData);
-      console.log(dataList);
       dataList.forEach((data) => {
         let piece = app.pieceArray[data[1]][data[0]];
         piece.classList.add('active');
@@ -192,6 +202,7 @@ let app = new Vue({
     this.connection.on('StartGame', function() {
       app.isPlaying = true;
       app.isReady = false;
+      app.readyArray = [false, false];
       for (let y = 1; y <= 15; y++) {
         for (let x = 1; x <= 15; x++) {
           app.pieceArray[y][x].onclick = app.setPiece;
@@ -211,8 +222,7 @@ let app = new Vue({
       }, 5000);
 
       app.isPlaying = false;
-      app.timeLeft = timeLeft;
-      app.readyArray = [false, false];
+      app.timeLeft = null;
       app.turnIndex = null;
       app.$el.querySelector('#board').classList.remove('my-turn');
     });

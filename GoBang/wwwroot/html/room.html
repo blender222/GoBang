@@ -32,7 +32,7 @@
         </div>
         <div class="room-item" v-for="room in roomList" @click="joinRoom(room.RoomId)">
           <div class="room-name">{{ room.RoomName }}</div>
-          <div class="player-count">{{ room.PlayerCount }} / 2</div>
+          <div class="player-count">{{ room.UserCount }}</div>
           <div class="room-status">{{ room.RoomStatus }}</div>
         </div>
       </div>
@@ -57,13 +57,13 @@
             <div class="color" :class="{ show: isPlaying }"></div>
             <span class="user-name">{{ playerList[0] == undefined ? '' : playerList[0].UserName }}</span>
             <span class="ready" v-if="!isPlaying && readyArray[0]">準備</span>
-            <span class="time-left" v-if="isPlaying && turnIndex == 0">{{ timeLeft }}</span>
+            <span class="time-left" v-if="isPlaying && timeLeft != null && turnIndex == 0">{{ timeLeft }} 秒</span>
           </div>
           <div class="player" :class="{ active: !isPlaying || turnIndex == 1 }">
             <div class="color" :class="{ show: isPlaying }"></div>
             <span class="user-name">{{ playerList[1] == undefined ? '' : playerList[1].UserName }}</span>
             <span class="ready" v-if="!isPlaying && readyArray[1]">準備</span>
-            <span class="time-left" v-if="isPlaying && turnIndex == 1">{{ timeLeft }}</span>
+            <span class="time-left" v-if="isPlaying && timeLeft != null && turnIndex == 1">{{ timeLeft }} 秒</span>
           </div>
         </div>
         <div class="other">
@@ -103,7 +103,7 @@
           <div class="winner">黑子</div>
           <div class="ml-4">勝</div>
         </div>
-        <button class="btn blue" @click="closeEndGame">確認</button>
+        <button class="btn blue" @click="closeGameResult">確認</button>
       </div>
     </div>
     <div id="user-count" v-if="scenes != 'room'">在線人數&nbsp;&nbsp;&nbsp;{{ userCount }}</div>
